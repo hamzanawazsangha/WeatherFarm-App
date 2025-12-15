@@ -49,7 +49,7 @@ A full-featured Progressive Web App (PWA) that combines real-time weather foreca
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/hamzanawazsangha/WeatherFarm-App
    cd weather-app
    ```
 
