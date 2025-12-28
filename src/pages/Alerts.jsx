@@ -1,131 +1,380 @@
 import { useState, useEffect } from 'react'
-import { Bell, AlertTriangle, Info, X, RefreshCw, CheckCircle } from 'lucide-react'
-import { getAlerts, dismissAlert, clearDismissedAlerts } from '../services/alertsService'
-import { getCachedWeatherData } from '../services/weatherService'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Bell, AlertTriangle, ShieldAlert, Info, X, RefreshCw, CheckCircle,
+  Filter, ChevronDown, Settings, Trash2
+} from 'lucide-react'
+import { useLocation } from '../context/LocationContext'
+import { getFarmingWeatherData } from '../services/weatherService'
+import { generateAlerts, ALERT_SEVERITY } from '../services/alertEngine'
+import {
+  getAllAlerts,
+  getActiveAlerts,
+  getUnreadAlerts,
+  markAlertAsRead,
+  dismissAlert,
+  clearAllAlerts,
+  saveAlerts,
+  getNotificationSettings,
+  saveNotificationSettings
+} from '../services/alertStorage'
+import AlertModal from '../components/AlertModal'
 
 const Alerts = () => {
+  const { location } = useLocation()
   const [alerts, setAlerts] = useState([])
-  const [location, setLocation] = useState(null)
+  const [filteredAlerts, setFilteredAlerts] = useState([])
+  const [selectedAlert, setSelectedAlert] = useState(null)
+  const [showModal, setShowModal] = useState(false)
+  const [filterSeverity, setFilterSeverity] = useState('all')
+  const [filterCategory, setFilterCategory] = useState('all')
+  const [showSettings, setShowSettings] = useState(false)
+  const [settings, setSettings] = useState(getNotificationSettings())
+  const [loading, setLoading] = useState(false)
+
+  // Load alerts from storage
+  const loadStoredAlerts = () => {
+    const storedAlerts = getActiveAlerts()
+    setAlerts(storedAlerts)
+    applyFilters(storedAlerts)
+  }
+
+  // Generate new alerts from weather data
+  const generateNewAlerts = async () => {
+    if (!location) return
+
+    setLoading(true)
+    try {
+      const weatherData = await getFarmingWeatherData(
+        location.latitude,
+        location.longitude,
+        location.timezone || 'auto'
+      )
+
+      if (weatherData) {
+        const newAlerts = generateAlerts(weatherData)
+        
+        // Save to storage
+        await saveAlerts(newAlerts)
+        
+        // Update state
+        setAlerts(newAlerts)
+        applyFilters(newAlerts)
+
+        // Dispatch event for AlertBell
+        window.dispatchEvent(new Event('newAlert'))
+      }
+    } catch (error) {
+      console.error('Error generating alerts:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Apply filters
+  const applyFilters = (alertsList = alerts) => {
+    let filtered = [...alertsList]
+
+    // Filter by severity
+    if (filterSeverity !== 'all') {
+      filtered = filtered.filter(alert => alert.severity === filterSeverity)
+    }
+
+    // Filter by category
+    if (filterCategory !== 'all') {
+      filtered = filtered.filter(alert => alert.category === filterCategory)
+    }
+
+    setFilteredAlerts(filtered)
+  }
 
   useEffect(() => {
-    const loadAlerts = () => {
-      const cached = getCachedWeatherData()
-      if (cached && cached.location) {
-        setLocation(cached.location)
-      }
-      
-      const generatedAlerts = getAlerts()
-      setAlerts(generatedAlerts)
-    }
-
-    loadAlerts()
-
-    // Refresh alerts every 30 seconds
-    const interval = setInterval(loadAlerts, 30000)
-
-    // Listen for storage changes
-    const handleStorageChange = (e) => {
-      if (e.key === 'weatherCache' || e.key === 'weatherAlerts' || !e.key) {
-        loadAlerts()
-      }
-    }
-
-    window.addEventListener('storage', handleStorageChange)
-
-    return () => {
-      clearInterval(interval)
-      window.removeEventListener('storage', handleStorageChange)
-    }
+    loadStoredAlerts()
   }, [])
 
-  const handleDismiss = (alertId) => {
-    dismissAlert(alertId)
-    setAlerts(prev => prev.filter(alert => alert.id !== alertId))
-  }
+  useEffect(() => {
+    applyFilters()
+  }, [filterSeverity, filterCategory, alerts])
 
+  // Auto-generate alerts when location changes
+  useEffect(() => {
+    if (location) {
+      generateNewAlerts()
+    }
+  }, [location])
+
+  // Handle refresh
   const handleRefresh = () => {
-    clearDismissedAlerts()
-    const cached = getCachedWeatherData()
-    if (cached && cached.location) {
-      setLocation(cached.location)
-    }
-    const generatedAlerts = getAlerts()
-    setAlerts(generatedAlerts)
+    generateNewAlerts()
   }
 
-  const getAlertIcon = (type) => {
-    switch (type) {
-      case 'error': return AlertTriangle
-      case 'warning': return AlertTriangle
-      case 'info': return Info
-      default: return Bell
+  // Handle alert click
+  const handleAlertClick = async (alert) => {
+    setSelectedAlert(alert)
+    setShowModal(true)
+    await markAlertAsRead(alert.id)
+    loadStoredAlerts()
+  }
+
+  // Handle dismiss
+  const handleDismiss = async (alertId) => {
+    await dismissAlert(alertId)
+    loadStoredAlerts()
+    setShowModal(false)
+  }
+
+  // Handle clear all
+  const handleClearAll = async () => {
+    if (window.confirm('Are you sure you want to clear all alerts?')) {
+      await clearAllAlerts()
+      loadStoredAlerts()
     }
   }
 
-  const getAlertStyles = (type, severity) => {
-    if (type === 'error' || severity === 'high') {
-      return 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
-    } else if (type === 'warning' || severity === 'medium') {
-      return 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-300'
-    } else {
-      return 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
+  // Handle settings change
+  const handleSettingsChange = (key, value) => {
+    const newSettings = { ...settings, [key]: value }
+    setSettings(newSettings)
+    saveNotificationSettings(newSettings)
+  }
+
+  const getSeverityIcon = (severity) => {
+    switch (severity) {
+      case 'critical':
+        return <ShieldAlert className="w-6 h-6 text-red-600 dark:text-red-400" />
+      case 'high':
+        return <AlertTriangle className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+      case 'medium':
+        return <Info className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+      default:
+        return <Info className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+    }
+  }
+
+  const getSeverityStyles = (severity) => {
+    switch (severity) {
+      case 'critical':
+        return 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 hover:border-red-400'
+      case 'high':
+        return 'bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-700 hover:border-orange-400'
+      case 'medium':
+        return 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700 hover:border-yellow-400'
+      default:
+        return 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700 hover:border-blue-400'
     }
   }
 
   const formatTime = (timestamp) => {
     if (!timestamp) return 'Just now'
+    const date = new Date(timestamp)
     const now = new Date()
-    const time = new Date(timestamp)
-    const diffMs = now - time
+    const diffMs = now - date
     const diffMins = Math.floor(diffMs / 60000)
     const diffHours = Math.floor(diffMs / 3600000)
     const diffDays = Math.floor(diffMs / 86400000)
 
     if (diffMins < 1) return 'Just now'
-    if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
-    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
+    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    if (diffDays < 7) return `${diffDays}d ago`
+    return date.toLocaleDateString()
   }
 
   return (
     <div className="space-y-8 animate-fade-in">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
           <div className="relative">
             <Bell className="w-10 h-10 text-blue-600 dark:text-blue-400" />
-            <div className="absolute inset-0 bg-indigo-400/20 rounded-full blur-lg"></div>
+            <div className="absolute inset-0 bg-blue-400/20 rounded-full blur-lg"></div>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold gradient-text">Alerts & Notifications</h1>
-        </div>
-      </div>
-
-      {location && (
-        <div className="glass-card bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800">
-          <div className="flex items-center gap-2">
-            <Bell className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Alerts for <span className="font-bold">{location.displayName}</span>
-            </p>
+          <div>
+            <h1 className="text-4xl md:text-5xl font-bold gradient-text">
+              Alerts & Notifications
+            </h1>
+            {location && (
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                {location.displayName}
+              </p>
+            )}
           </div>
         </div>
-      )}
 
-      <div className="glass-card">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Active Alerts</h2>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors"
+          >
+            <Settings className="w-4 h-4" />
+            Settings
+          </button>
           <button
             onClick={handleRefresh}
-            className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors"
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
         </div>
-        {alerts.length === 0 ? (
+      </div>
+
+      {/* Settings Panel */}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="glass-card overflow-hidden"
+          >
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+              Notification Settings
+            </h2>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div>
+                  <h3 className="font-medium text-gray-900 dark:text-gray-100">Enable Notifications</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Turn all notifications on/off</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={settings.enabled}
+                  onChange={(e) => handleSettingsChange('enabled', e.target.checked)}
+                  className="w-12 h-6 rounded-full"
+                />
+              </div>
+              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div>
+                  <h3 className="font-medium text-gray-900 dark:text-gray-100">Critical Alerts</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Show critical severity alerts</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={settings.showCritical}
+                  onChange={(e) => handleSettingsChange('showCritical', e.target.checked)}
+                  className="w-12 h-6 rounded-full"
+                />
+              </div>
+              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div>
+                  <h3 className="font-medium text-gray-900 dark:text-gray-100">High Priority Alerts</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Show high severity alerts</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={settings.showHigh}
+                  onChange={(e) => handleSettingsChange('showHigh', e.target.checked)}
+                  className="w-12 h-6 rounded-full"
+                />
+              </div>
+              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div>
+                  <h3 className="font-medium text-gray-900 dark:text-gray-100">Medium Priority Alerts</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Show medium severity alerts</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={settings.showMedium}
+                  onChange={(e) => handleSettingsChange('showMedium', e.target.checked)}
+                  className="w-12 h-6 rounded-full"
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Filters & Stats */}
+      <div className="glass-card">
+        <div className="flex items-center justify-between flex-wrap gap-4 mb-4">
+          <div className="flex items-center gap-3">
+            <Filter className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Filters</h2>
+          </div>
+          
+          {alerts.length > 0 && (
+            <button
+              onClick={handleClearAll}
+              className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 hover:underline"
+            >
+              <Trash2 className="w-4 h-4" />
+              Clear All
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Severity Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Severity
+            </label>
+            <select
+              value={filterSeverity}
+              onChange={(e) => setFilterSeverity(e.target.value)}
+              className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-100"
+            >
+              <option value="all">All Severities</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+
+          {/* Category Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Category
+            </label>
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-100"
+            >
+              <option value="all">All Categories</option>
+              <option value="weather">Weather</option>
+              <option value="disaster">Disaster</option>
+              <option value="pest">Pest & Disease</option>
+              <option value="irrigation">Irrigation</option>
+            </select>
+          </div>
+
+          {/* Stats */}
+          <div className="flex items-center gap-4">
+            <div className="text-center flex-1">
+              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{alerts.length}</p>
+              <p className="text-xs text-gray-600 dark:text-gray-400">Total</p>
+            </div>
+            <div className="text-center flex-1">
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+                {alerts.filter(a => a.severity === 'critical').length}
+              </p>
+              <p className="text-xs text-gray-600 dark:text-gray-400">Critical</p>
+            </div>
+            <div className="text-center flex-1">
+              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                {getUnreadAlerts().length}
+              </p>
+              <p className="text-xs text-gray-600 dark:text-gray-400">Unread</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Alerts List */}
+      <div className="glass-card">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+          Active Alerts ({filteredAlerts.length})
+        </h2>
+
+        {filteredAlerts.length === 0 ? (
           <div className="text-center py-12">
             <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4 opacity-50" />
-            <p className="text-gray-600 dark:text-gray-400">
-              No active alerts. All conditions are normal.
+            <p className="text-gray-600 dark:text-gray-400 text-lg font-medium">
+              {alerts.length === 0 ? 'No active alerts' : 'No alerts match your filters'}
             </p>
             {!location && (
               <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
@@ -134,87 +383,75 @@ const Alerts = () => {
             )}
           </div>
         ) : (
-          <div className="space-y-4">
-            {alerts.map((alert) => {
-              const Icon = getAlertIcon(alert.type)
-              return (
-                <div
-                  key={alert.id}
-                  className={`p-4 rounded-lg border-2 relative ${getAlertStyles(alert.type, alert.severity)}`}
-                >
-                  <button
-                    onClick={() => handleDismiss(alert.id)}
-                    className="absolute top-3 right-3 p-1 hover:bg-white/20 dark:hover:bg-black/20 rounded transition-colors"
-                    aria-label="Dismiss alert"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                  <div className="flex items-start gap-3 pr-8">
-                    <Icon className="w-6 h-6 flex-shrink-0 mt-1" />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-bold">{alert.title}</h3>
-                        <span className="text-xs px-2 py-0.5 bg-white/20 dark:bg-black/20 rounded-full capitalize">
-                          {alert.severity}
+          <div className="space-y-3">
+            {filteredAlerts.map((alert, index) => (
+              <motion.div
+                key={alert.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                onClick={() => handleAlertClick(alert)}
+                className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${getSeverityStyles(alert.severity)} ${
+                  !alert.isRead ? 'ring-2 ring-blue-500' : ''
+                }`}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 mt-1">
+                    {getSeverityIcon(alert.severity)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h3 className="font-bold text-lg text-gray-900 dark:text-gray-100 line-clamp-1">
+                        {alert.title}
+                      </h3>
+                      {!alert.isRead && (
+                        <span className="px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded-full flex-shrink-0">
+                          NEW
                         </span>
-                      </div>
-                      <p className="text-sm mb-2">{alert.message}</p>
-                      <div className="flex items-center gap-2 text-xs opacity-75">
-                        <span>{formatTime(alert.timestamp)}</span>
-                        {alert.category && (
-                          <>
-                            <span>•</span>
-                            <span className="capitalize">{alert.category}</span>
-                          </>
-                        )}
-                      </div>
+                      )}
+                    </div>
+                    <p className="text-gray-700 dark:text-gray-300 mb-3 line-clamp-2">
+                      {alert.message}
+                    </p>
+                    <div className="flex items-center flex-wrap gap-2">
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                        alert.severity === 'critical' ? 'bg-red-200 dark:bg-red-900/50 text-red-700 dark:text-red-300' :
+                        alert.severity === 'high' ? 'bg-orange-200 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300' :
+                        alert.severity === 'medium' ? 'bg-yellow-200 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300' :
+                        'bg-blue-200 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                      }`}>
+                        {alert.severity.toUpperCase()}
+                      </span>
+                      <span className="px-2 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full text-xs font-medium capitalize">
+                        {alert.category}
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-500">
+                        {formatTime(alert.timestamp)}
+                      </span>
+                      {alert.expiresAt && (
+                        <span className="text-xs text-gray-500 dark:text-gray-500">
+                          • Expires {new Date(alert.expiresAt).toLocaleDateString()}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
-              )
-            })}
+              </motion.div>
+            ))}
           </div>
         )}
       </div>
 
-      <div className="glass-card">
-        <h2 className="text-xl font-semibold mb-4">Alert Settings</h2>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
-            <div>
-              <h3 className="font-medium">Frost Warnings</h3>
-              <p className="text-sm text-gray-500">Get notified about freezing temperatures</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" className="sr-only peer" defaultChecked />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-          <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
-            <div>
-              <h3 className="font-medium">Rain Alerts</h3>
-              <p className="text-sm text-gray-500">Notifications for precipitation forecasts</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" className="sr-only peer" defaultChecked />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-          <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
-            <div>
-              <h3 className="font-medium">Farming Recommendations</h3>
-              <p className="text-sm text-gray-500">AI-powered farming suggestions</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" className="sr-only peer" defaultChecked />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-        </div>
-      </div>
+      {/* Alert Modal */}
+      {showModal && selectedAlert && (
+        <AlertModal
+          alert={selectedAlert}
+          onClose={() => setShowModal(false)}
+          onDismiss={handleDismiss}
+        />
+      )}
     </div>
   )
 }
 
 export default Alerts
-

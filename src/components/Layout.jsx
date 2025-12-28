@@ -6,8 +6,9 @@ import FloatingAIChat from './FloatingAIChat'
 import OfflineBanner from './OfflineBanner'
 import InstallPrompt from './InstallPrompt'
 import LanguageSelector from './LanguageSelector'
+import AlertBell from './AlertBell'
 import {
-  Home, Cloud, Sprout, BarChart3, Bell, Moon, Sun, Menu, X
+  Home, Cloud, Sprout, Calendar, BarChart3, Bell, Moon, Sun, Menu, X
 } from 'lucide-react'
 
 const getGradientClass = (weatherTheme) => {
@@ -32,6 +33,7 @@ const Layout = ({ children }) => {
     { path: '/', icon: Home, label: 'Home' },
     { path: '/weather', icon: Cloud, label: 'Weather' },
     { path: '/farming', icon: Sprout, label: 'Farming' },
+    { path: '/crop-calendar', icon: Calendar, label: 'Crop Calendar' },
     { path: '/analytics', icon: BarChart3, label: 'Analytics' },
     { path: '/alerts', icon: Bell, label: 'Alerts' },
   ]
@@ -96,6 +98,20 @@ const Layout = ({ children }) => {
 
       {/* Main area */}
       <div className="flex-1 flex flex-col min-h-screen lg:pl-64">
+        {/* Desktop Top Bar with Alert Bell */}
+        <div className="hidden lg:flex sticky top-0 right-0 z-30 py-3 px-6 justify-end glass backdrop-blur-xl border-b border-white/20">
+          <div className="flex items-center gap-3">
+            <AlertBell />
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-[12px] hover:bg-white/20 dark:hover:bg-white/10 transition-colors"
+              aria-label="Toggle theme"
+            >
+              {theme === 'dark' ? <Sun className="w-5 h-5 text-blue-600" /> : <Moon className="w-5 h-5 text-blue-600" />}
+            </button>
+          </div>
+        </div>
+
         {/* Top Navbar for mobile */}
         <header className="glass sticky top-0 left-0 z-30 py-4 px-6 flex items-center justify-between lg:hidden backdrop-blur-xl border-b border-white/20">
           <Link to="/" className="flex items-center gap-2 group">
@@ -106,6 +122,7 @@ const Layout = ({ children }) => {
             <span className="text-xl font-extrabold gradient-text tracking-tight">WeatherFarm</span>
           </Link>
           <div className="flex gap-2 items-center">
+            <AlertBell />
             <button
               onClick={toggleTheme}
               className="p-2 rounded-[12px] hover:bg-white/20 dark:hover:bg-white/10 transition-colors"

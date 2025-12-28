@@ -84,7 +84,7 @@
     box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
   }
   .glass-card {
-    @apply glass rounded-xl p-6 transition-all duration-300 hover:shadow-lg;
+    @apply glass rounded-lg p-4 transition-all duration-300 hover:shadow-lg border border-gray-200/50 dark:border-gray-700/50;
   }
   .glass-card:hover {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -151,6 +151,21 @@
 }
 
 @layer utilities {
+  /* Custom Scrollbar Styles */
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-gray-200 dark:bg-gray-700 rounded-full;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-blue-500 dark:bg-blue-400 rounded-full;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-blue-600 dark:bg-blue-500;
+  }
+  
   /* Unified Professional Color Scheme */
   .gradient-bg-sunny,
   .gradient-bg-cloudy,

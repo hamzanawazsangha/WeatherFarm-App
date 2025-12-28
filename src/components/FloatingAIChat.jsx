@@ -21,7 +21,7 @@ const FloatingAIChat = () => {
         
         {/* Tooltip */}
         <div className="absolute bottom-full right-0 mb-4 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white text-sm font-bold rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-300 whitespace-nowrap pointer-events-none border border-blue-700 dark:border-blue-600">
-          <span>AI Assistant</span>
+          <span>🌾 Farming Assistant</span>
           <div className="absolute top-full right-6 w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-transparent border-t-blue-600 dark:border-t-blue-500"></div>
         </div>
       </div>

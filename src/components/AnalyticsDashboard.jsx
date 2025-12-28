@@ -33,8 +33,10 @@ import {
   getWeatherTrends,
   saveAnalyticsData,
 } from '../services/analyticsService'
-import { getCachedWeatherData } from '../services/weatherService'
+import { getFarmingWeatherData } from '../services/weatherService'
 import { getCropInsights, CROP_TYPES } from '../services/cropAdvisorService'
+import { useLocation } from '../context/LocationContext'
+import RiskTrendChart from './RiskTrendChart'
 
 // Register Chart.js components
 ChartJS.register(
@@ -50,59 +52,74 @@ ChartJS.register(
 )
 
 const TABS = {
+  RISK_INDEX: 'riskindex',
   WEATHER_TRENDS: 'weather',
   CROP_RISKS: 'crops',
   IRRIGATION: 'irrigation',
 }
 
 const AnalyticsDashboard = () => {
-  const [activeTab, setActiveTab] = useState(TABS.WEATHER_TRENDS)
+  const { location } = useLocation()
+  const [activeTab, setActiveTab] = useState(TABS.RISK_INDEX)
   const [timeRange, setTimeRange] = useState(7) // days
   const [weatherData, setWeatherData] = useState(null)
   const [trends, setTrends] = useState(null)
   const [irrigationInsights, setIrrigationInsights] = useState(null)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    // Load weather data from cache
-    const loadData = () => {
-      const cached = getCachedWeatherData()
-      if (cached && cached.weatherData) {
-        setWeatherData(cached.weatherData)
+    if (!location?.latitude || !location?.longitude) return;
+
+    console.log('📊 Analytics: Loading data for', location.displayName);
+    setLoading(true);
+
+    getFarmingWeatherData(location.latitude, location.longitude, 'auto', timeRange)
+      .then(data => {
+        console.log('📊 Analytics: Raw data received:', data);
         
-        // Save current data point to analytics
-        saveAnalyticsData(cached.weatherData)
+        // Transform to format expected by analytics service
+        const transformedData = {
+          current: {
+            temperature: data.current?.temperature || 0,
+            humidity: data.current?.humidity || 0,
+            precipitation: data.current?.precipitation || 0,
+            windSpeed: data.current?.windSpeed || 0,
+            uvIndex: data.current?.uvIndex || 0,
+            condition: data.current?.condition || 'clear'
+          },
+          forecast: data.daily ? data.daily.slice(1, 6).map(day => ({
+            maxTemp: day.maxTemp || 0,
+            minTemp: day.minTemp || 0,
+            precipitation: day.precipitation || 0,
+            rainProbability: day.precipitationProbability || 0,
+            windSpeed: day.windSpeed || 0,
+            condition: day.condition || 'clear',
+            date: day.date
+          })) : []
+        };
         
-        // Calculate crop risk if we have forecast data
-        if (cached.weatherData.current && cached.weatherData.forecast) {
+        setWeatherData(transformedData);
+        saveAnalyticsData(transformedData);
+        
+        // Calculate crop risk
+        if (transformedData.current && transformedData.forecast.length > 0) {
           const cropInsights = getCropInsights(
-            CROP_TYPES.WHEAT, // Default crop for risk calculation
-            cached.weatherData.current,
-            cached.weatherData.forecast
-          )
+            CROP_TYPES.WHEAT,
+            transformedData.current,
+            transformedData.forecast
+          );
           if (cropInsights) {
-            saveAnalyticsData(cached.weatherData, cropInsights)
+            saveAnalyticsData(transformedData, cropInsights);
           }
         }
-      }
-    }
-
-    loadData()
-
-    // Listen for storage changes
-    const handleStorageChange = (e) => {
-      if (e.key === 'weatherCache' || !e.key) {
-        loadData()
-      }
-    }
-
-    window.addEventListener('storage', handleStorageChange)
-    const interval = setInterval(loadData, 5000)
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange)
-      clearInterval(interval)
-    }
-  }, [])
+        
+        console.log('✅ Analytics: Data loaded for', location.displayName);
+      })
+      .catch(err => {
+        console.error('Analytics: Error loading data:', err);
+      })
+      .finally(() => setLoading(false));
+  }, [location, timeRange])
 
   // Update trends and insights when timeRange changes
   useEffect(() => {
@@ -424,10 +441,25 @@ const AnalyticsDashboard = () => {
 
       {/* Tabs */}
       <div className="glass-card p-2">
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <button
+            onClick={() => setActiveTab(TABS.RISK_INDEX)}
+            className={`relative px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+              activeTab === TABS.RISK_INDEX
+                ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-lg'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            {activeTab !== TABS.RISK_INDEX && (
+              <span className="absolute -top-2 -right-2 px-2 py-0.5 bg-yellow-500 text-white text-xs font-bold rounded-full">
+                ⭐
+              </span>
+            )}
+            Risk Index
+          </button>
           <button
             onClick={() => setActiveTab(TABS.WEATHER_TRENDS)}
-            className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+            className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
               activeTab === TABS.WEATHER_TRENDS
                 ? 'bg-blue-600 text-white shadow-lg'
                 : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -437,7 +469,7 @@ const AnalyticsDashboard = () => {
           </button>
           <button
             onClick={() => setActiveTab(TABS.CROP_RISKS)}
-            className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+            className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
               activeTab === TABS.CROP_RISKS
                 ? 'bg-blue-600 text-white shadow-lg'
                 : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -447,7 +479,7 @@ const AnalyticsDashboard = () => {
           </button>
           <button
             onClick={() => setActiveTab(TABS.IRRIGATION)}
-            className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+            className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
               activeTab === TABS.IRRIGATION
                 ? 'bg-blue-600 text-white shadow-lg'
                 : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -460,6 +492,13 @@ const AnalyticsDashboard = () => {
 
       {/* Tab Content */}
       <div className="space-y-6">
+        {/* Risk Index Tab - MAIN FEATURE */}
+        {activeTab === TABS.RISK_INDEX && (
+          <div>
+            <RiskTrendChart days={timeRange} />
+          </div>
+        )}
+
         {/* Weather Trends Tab */}
         {activeTab === TABS.WEATHER_TRENDS && (
           <div className="space-y-6">

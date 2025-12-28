@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Cloud, Sprout, BarChart3, Bell, MessageSquare, ArrowRight, Wifi, Smartphone } from 'lucide-react'
+import { Cloud, Sprout, Calendar, BarChart3, Bell, MessageSquare, ArrowRight, Wifi, Smartphone } from 'lucide-react'
 
 const Home = () => {
   const features = [
@@ -16,6 +16,13 @@ const Home = () => {
       description: 'Smart farming recommendations based on weather',
       link: '/farming',
       color: 'from-green-500 to-emerald-500',
+    },
+    {
+      icon: Calendar,
+      title: 'Smart Crop Calendar',
+      description: 'Location-based crop planning and timeline management',
+      link: '/crop-calendar',
+      color: 'from-teal-500 to-green-500',
     },
     {
       icon: BarChart3,

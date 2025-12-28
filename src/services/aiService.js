@@ -12,9 +12,11 @@ const OPENAI_API_URL = import.meta.env.VITE_OPENAI_API_URL || 'https://api.opena
  * @param {string} cropType - Selected crop type
  * @param {string} language - 'en' or 'ur'
  * @param {Object} location - Current location
+ * @param {Object} riskIndex - Crop risk index data
+ * @param {Array} activeAlerts - Active weather/farming alerts
  * @returns {string} System prompt
  */
-const buildSystemPrompt = (weatherData, cropType, language = 'en', location = null) => {
+const buildSystemPrompt = (weatherData, cropType, language = 'en', location = null, riskIndex = null, activeAlerts = []) => {
   const isUrdu = language === 'ur'
   
   let prompt = isUrdu 
@@ -55,38 +57,122 @@ const buildSystemPrompt = (weatherData, cropType, language = 'en', location = nu
     prompt += cropText
   }
 
+  // Add risk index context
+  if (riskIndex) {
+    const riskText = isUrdu
+      ? `\n\nفصل کا خطرہ انڈیکس: ${riskIndex.totalScore}/100 (${riskIndex.category})\nاہم خطرات:\n- گرمی کا دباؤ: ${riskIndex.breakdown?.heatStress?.score || 0}/100\n- پانی کا دباؤ: ${riskIndex.breakdown?.waterStress?.score || 0}/100\n- کیڑے/بیماری: ${riskIndex.breakdown?.pestRisk?.score || 0}/100\n- ہوا کا نقصان: ${riskIndex.breakdown?.windRisk?.score || 0}/100`
+      : `\n\nCrop Risk Index: ${riskIndex.totalScore}/100 (${riskIndex.category})\nKey Risks:\n- Heat Stress: ${riskIndex.breakdown?.heatStress?.score || 0}/100\n- Water Stress: ${riskIndex.breakdown?.waterStress?.score || 0}/100\n- Pest/Disease: ${riskIndex.breakdown?.pestRisk?.score || 0}/100\n- Wind Damage: ${riskIndex.breakdown?.windRisk?.score || 0}/100`
+    prompt += riskText
+  }
+
+  // Add active alerts context
+  if (activeAlerts && activeAlerts.length > 0) {
+    const criticalAlerts = activeAlerts.filter(a => a.severity === 'critical' || a.severity === 'high').slice(0, 3)
+    if (criticalAlerts.length > 0) {
+      const alertsText = isUrdu
+        ? `\n\nفعال انتباہات:\n${criticalAlerts.map(a => `- ${a.title}: ${a.message}`).join('\n')}`
+        : `\n\nActive Alerts:\n${criticalAlerts.map(a => `- ${a.title}: ${a.message}`).join('\n')}`
+      prompt += alertsText
+    }
+  }
+
   prompt += isUrdu
-    ? '\n\nمختصر، عملی، اور آسان الفاظ میں جواب دیں۔'
-    : '\n\nProvide concise, practical answers in simple language.'
+    ? '\n\nآپ کا کام:\n1. کسان کو سادہ اردو میں جواب دیں\n2. عملی اقدامات بتائیں\n3. مثالیں اور تفصیلات دیں\n4. فوری اقدامات کو نمایاں کریں\n5. سائنسی اصطلاحات سے بچیں'
+    : '\n\nYour Role:\n1. Answer in simple, clear English\n2. Provide actionable steps\n3. Give examples and details\n4. Highlight urgent actions\n5. Avoid technical jargon\n6. Be practical and farmer-friendly'
 
   return prompt
 }
 
 /**
- * Get example prompt templates
+ * Get example prompt templates based on context
  */
-export const getExamplePrompts = (language = 'en') => {
+export const getExamplePrompts = (language = 'en', riskIndex = null, activeAlerts = []) => {
   const isUrdu = language === 'ur'
   
+  // Dynamic prompts based on risk and alerts
+  const hasHighRisk = riskIndex && riskIndex.totalScore > 60
+  const hasCriticalAlerts = activeAlerts.some(a => a.severity === 'critical')
+  
   if (isUrdu) {
+    if (hasCriticalAlerts) {
+      return [
+        'انتباہات کی تفصیل سمجھائیں',
+        'میں فوری کیا کروں؟',
+        'کیا آج باہر کام کرنا محفوظ ہے؟',
+        'آج کے لیے اہم اقدامات بتائیں',
+      ]
+    }
+    if (hasHighRisk) {
+      return [
+        'خطرے کی وجہ کیا ہے؟',
+        'میں خطرہ کیسے کم کروں؟',
+        'کیا میری فصل محفوظ ہے؟',
+        'کون سی احتیاطی تدابیر اختیار کروں؟',
+      ]
+    }
     return [
+      'آج کے لیے مکمل مشورہ دیں',
       'کیا آبیاری کا اچھا وقت ہے؟',
-      'میرے کپاس کے پتے پیلا کیوں ہیں؟',
-      'کیا مجھے کل کیڑے مار دوا چھڑکنی چاہیے؟',
-      'آج کے لیے کاشتکاری کے مشورے دیں۔',
-      'میرے لیے بہترین کاشتکاری کا وقت کیا ہے؟',
-      'بارش کی پیشن گوئی کیا ہے؟',
+      'میری فصل کی صحت کیسی ہے؟',
+      'کل کے لیے کیا منصوبہ بنائیں؟',
+      'کیڑے مار دوا کب چھڑکیں؟',
+      'بارش کب آئے گی؟',
+      'کھاد کب ڈالنی چاہیے؟',
+      'فصل کی کٹائی کب کریں؟',
     ]
   }
   
+  // English prompts
+  if (hasCriticalAlerts) {
+    return [
+      'Explain the critical alerts',
+      'What should I do immediately?',
+      'Is it safe to work outside today?',
+      'Give me urgent action plan',
+    ]
+  }
+  if (hasHighRisk) {
+    return [
+      'Why is the risk high?',
+      'How can I reduce the risk?',
+      'Is my crop safe?',
+      'What precautions should I take?',
+    ]
+  }
   return [
+    'Give me today\'s complete advice',
     'Is it good time for irrigation?',
-    'Why are my cotton leaves yellow?',
-    'Should I spray pesticide tomorrow?',
-    'Give me today\'s farming suggestions.',
-    'What is the best time for planting?',
-    'What is the rainfall forecast?',
+    'How is my crop health?',
+    'What should I plan for tomorrow?',
+    'When should I spray pesticide?',
+    'When will it rain?',
+    'When to apply fertilizer?',
+    'When to harvest my crop?',
   ]
+}
+
+/**
+ * Generate daily action summary
+ */
+export const generateDailySummary = async (weatherData, cropType, riskIndex, activeAlerts, language = 'en') => {
+  const isUrdu = language === 'ur'
+  const question = isUrdu
+    ? 'آج کے لیے مکمل کاشتکاری کا خلاصہ دیں۔ کیا کرنا ہے اور کیا نہیں کرنا؟ ترجیح کی بنیاد پر 3-5 نکات دیں۔'
+    : 'Give me a complete farming summary for today. What to do and what not to do? Provide 3-5 points in order of priority.'
+  
+  return await sendAIMessage(question, [], weatherData, cropType, language, null, riskIndex, activeAlerts)
+}
+
+/**
+ * Explain specific alert
+ */
+export const explainAlert = async (alert, weatherData, cropType, language = 'en') => {
+  const isUrdu = language === 'ur'
+  const question = isUrdu
+    ? `اس انتباہ کی تفصیل بتائیں: "${alert.title}". میری فصل پر کیا اثر ہوگا اور میں کیا کروں؟`
+    : `Explain this alert in detail: "${alert.title}". How will it affect my crop and what should I do?`
+  
+  return await sendAIMessage(question, [], weatherData, cropType, language, null, null, [alert])
 }
 
 /**
@@ -96,15 +182,18 @@ export const getExamplePrompts = (language = 'en') => {
  * @param {Object} weatherData - Current weather data
  * @param {string} cropType - Selected crop type
  * @param {string} language - 'en' or 'ur'
+ * @param {Object} location - Current location
+ * @param {Object} riskIndex - Crop risk index
+ * @param {Array} activeAlerts - Active alerts
  * @returns {Promise<string>} AI response
  */
-export const sendAIMessage = async (message, conversationHistory = [], weatherData = null, cropType = null, language = 'en') => {
+export const sendAIMessage = async (message, conversationHistory = [], weatherData = null, cropType = null, language = 'en', location = null, riskIndex = null, activeAlerts = []) => {
   if (!OPENAI_API_KEY) {
     throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your .env file')
   }
 
   try {
-    const systemPrompt = buildSystemPrompt(weatherData, cropType, language)
+    const systemPrompt = buildSystemPrompt(weatherData, cropType, language, location, riskIndex, activeAlerts)
     
     const messages = [
       {

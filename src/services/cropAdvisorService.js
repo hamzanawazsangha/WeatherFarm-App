@@ -10,6 +10,7 @@ const CROP_TYPES = {
   COTTON: 'cotton',
   SUGARCANE: 'sugarcane',
   VEGETABLES: 'vegetables',
+  DEFAULT: 'default',
 };
 
 /**
@@ -81,6 +82,20 @@ const CROP_OPTIMAL_CONDITIONS = {
     windMax: 25,
     uvIndexMax: 7,
   },
+  // Default/fallback conditions for crops not specifically defined
+  [CROP_TYPES.DEFAULT]: {
+    tempMin: 15,
+    tempMax: 30,
+    tempOptimal: [18, 25],
+    humidityMin: 50,
+    humidityMax: 75,
+    humidityOptimal: [55, 70],
+    rainfallMin: 30,
+    rainfallMax: 100,
+    rainfallOptimal: [40, 70],
+    windMax: 30,
+    uvIndexMax: 8,
+  },
 };
 
 /**
@@ -91,11 +106,13 @@ const CROP_OPTIMAL_CONDITIONS = {
  * @returns {Object} Crop insights object
  */
 export const getCropInsights = (cropType, currentWeather, forecast = []) => {
-  if (!currentWeather || !CROP_OPTIMAL_CONDITIONS[cropType]) {
+  if (!currentWeather) {
     return null;
   }
 
-  const conditions = CROP_OPTIMAL_CONDITIONS[cropType];
+  // Use crop-specific conditions if available, otherwise use default
+  const conditions = CROP_OPTIMAL_CONDITIONS[cropType] || CROP_OPTIMAL_CONDITIONS[CROP_TYPES.DEFAULT];
+  
   const insights = {
     cropType,
     cropName: cropType.charAt(0).toUpperCase() + cropType.slice(1),

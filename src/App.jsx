@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 import { ThemeProvider } from './context/ThemeContext'
+import { LocationProvider } from './context/LocationContext'
 import Layout from './components/Layout'
 import LoadingSkeleton from './components/LoadingSkeleton'
 
@@ -8,6 +9,7 @@ import LoadingSkeleton from './components/LoadingSkeleton'
 const Home = lazy(() => import('./pages/Home'))
 const Weather = lazy(() => import('./pages/Weather'))
 const Farming = lazy(() => import('./pages/Farming'))
+const CropCalendarPage = lazy(() => import('./pages/CropCalendarPage'))
 const Analytics = lazy(() => import('./pages/Analytics'))
 const Alerts = lazy(() => import('./pages/Alerts'))
 const AIChat = lazy(() => import('./pages/AIChat'))
@@ -27,17 +29,20 @@ function App() {
   try {
     return (
       <ThemeProvider>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<SuspenseWrapper><Home /></SuspenseWrapper>} />
-            <Route path="/weather" element={<SuspenseWrapper><Weather /></SuspenseWrapper>} />
-            <Route path="/farming" element={<SuspenseWrapper><Farming /></SuspenseWrapper>} />
-            <Route path="/analytics" element={<SuspenseWrapper><Analytics /></SuspenseWrapper>} />
-            <Route path="/alerts" element={<SuspenseWrapper><Alerts /></SuspenseWrapper>} />
-            <Route path="/ai-chat" element={<SuspenseWrapper><AIChat /></SuspenseWrapper>} />
-            <Route path="/offline" element={<SuspenseWrapper><OfflinePage /></SuspenseWrapper>} />
-          </Routes>
-        </Layout>
+        <LocationProvider>
+          <Layout>
+            <Routes>
+              <Route path="/" element={<SuspenseWrapper><Home /></SuspenseWrapper>} />
+              <Route path="/weather" element={<SuspenseWrapper><Weather /></SuspenseWrapper>} />
+              <Route path="/farming" element={<SuspenseWrapper><Farming /></SuspenseWrapper>} />
+              <Route path="/crop-calendar" element={<SuspenseWrapper><CropCalendarPage /></SuspenseWrapper>} />
+              <Route path="/analytics" element={<SuspenseWrapper><Analytics /></SuspenseWrapper>} />
+              <Route path="/alerts" element={<SuspenseWrapper><Alerts /></SuspenseWrapper>} />
+              <Route path="/ai-chat" element={<SuspenseWrapper><AIChat /></SuspenseWrapper>} />
+              <Route path="/offline" element={<SuspenseWrapper><OfflinePage /></SuspenseWrapper>} />
+            </Routes>
+          </Layout>
+        </LocationProvider>
       </ThemeProvider>
     )
   } catch (error) {

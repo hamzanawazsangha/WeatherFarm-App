@@ -1,25 +1,23 @@
 import { useState, useEffect } from 'react'
-import { getCropInsights, CROP_TYPES } from '../services/cropAdvisorService'
+import { getCropInsights } from '../services/cropAdvisorService'
 import LoadingSkeleton from './LoadingSkeleton'
 import {
-  Sprout, Droplet, AlertTriangle, Calendar, TrendingDown, TrendingUp,
+  Droplet, AlertTriangle, Calendar, TrendingDown, TrendingUp,
   CheckCircle, XCircle, AlertCircle, Thermometer, Wind, CloudRain,
-  Activity, Shield, Lightbulb, ChevronDown, ChevronUp
+  Shield, Lightbulb, ChevronDown, ChevronUp
 } from 'lucide-react'
 
-const CropAdvisor = ({ weatherData }) => {
-  const [selectedCrop, setSelectedCrop] = useState(CROP_TYPES.WHEAT)
+const CropAdvisor = ({ weatherData, selectedCrop }) => {
   const [insights, setInsights] = useState(null)
   const [expandedSections, setExpandedSections] = useState({
-    conditions: true,
-    irrigation: true,
-    risks: true,
-    activities: true,
-    recommendations: true,
+    conditions: false,
+    irrigation: false,
+    risks: false,
+    recommendations: false,
   })
 
   useEffect(() => {
-    if (weatherData && weatherData.current) {
+    if (weatherData && weatherData.current && selectedCrop) {
       const cropInsights = getCropInsights(
         selectedCrop,
         weatherData.current,
@@ -84,32 +82,28 @@ const CropAdvisor = ({ weatherData }) => {
     return 'text-green-600 dark:text-green-400'
   }
 
+  // Check if using default conditions
+  const isUsingDefault = !['wheat', 'rice', 'cotton', 'sugarcane', 'vegetables'].includes(selectedCrop)
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Crop Selector */}
-      <div className="glass-card">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
-            <Sprout className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            Select Crop Type
-          </h2>
+    <div className="space-y-6">
+      {/* Info banner for crops using default conditions */}
+      {isUsingDefault && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                Using General Agricultural Guidelines
+              </p>
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                The insights below are based on general farming conditions suitable for most crops. 
+                For crops like wheat, rice, cotton, sugarcane, and vegetables, we provide specialized recommendations.
+              </p>
+            </div>
+          </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {Object.values(CROP_TYPES).map((crop) => (
-            <button
-              key={crop}
-              onClick={() => setSelectedCrop(crop)}
-              className={`px-4 py-3 rounded-xl font-semibold transition-all duration-300 ${
-                selectedCrop === crop
-                  ? 'bg-blue-600 text-white shadow-lg scale-105'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500'
-              }`}
-            >
-              {crop.charAt(0).toUpperCase() + crop.slice(1)}
-            </button>
-          ))}
-        </div>
-      </div>
+      )}
 
       {/* Crop Loss Risk Score */}
       <div className="glass-card bg-gradient-to-br from-blue-50 to-white dark:from-gray-800 dark:to-gray-900 border-2 border-blue-200 dark:border-blue-800">
