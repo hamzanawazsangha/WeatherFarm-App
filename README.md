@@ -362,6 +362,15 @@ const CROP_OPTIMAL_CONDITIONS = {
 
 MIT License - see LICENSE file for details
 
+## 👨‍💻 Author
+
+**Muhammad Hamza Nawaz**
+- 🎓 **Data Scientist**
+- 🏛️ **Al-khawarizmi Institute of Computer Science**
+- GitHub: [@hamzanawazsangha](https://github.com/hamzanawazsangha/)
+- LinkedIn: [Muhammad Hamza Nawaz](https://www.linkedin.com/in/muhammad-hamza-nawaz-a434501b3/)
+- Instagram: [@iam_hamzanawaz](https://instagram.com/iam_hamzanawaz)
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please:
@@ -374,9 +383,9 @@ Contributions are welcome! Please:
 ## 📞 Support
 
 For issues and questions:
-- Open an issue on GitHub
-- Check existing documentation
-- Review troubleshooting section
+- 📧 **Email**: [iamhamzanawaz14@gmail.com](iamhamzanawaz14@gmail.com)
+- 💬 **Issues**: [GitHub Issues](https://github.com/hamzanawazsangha/NeuroScan-AI---Alzheimer-s-Detection-System/issues) 
+- 📚 **Documentation**: [Full Documentation](docs/)
 
 ## 🙏 Acknowledgments
 
@@ -387,4 +396,4 @@ For issues and questions:
 
 ---
 
-**Made with ❤️ for farmers and agriculture**
+**Developed with ❤️ for farmers and agriculture**
